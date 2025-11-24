@@ -1,6 +1,3 @@
-import copy
-from time import sleep
-
 from database.regione_DAO import RegioneDAO
 from database.tour_DAO import TourDAO
 from database.attrazione_DAO import AttrazioneDAO
@@ -15,7 +12,9 @@ class Model:
         self._costo = 0
 
         # TODO: Aggiungere eventuali altri attributi
-
+        self._max_giorni = None
+        self._max_budget = None
+        self._id_regione = None
         # Caricamento
         self.load_tour()
         self.load_attrazioni()
@@ -44,8 +43,8 @@ class Model:
         # TODO
         self.tour_attrazioni = TourDAO.get_tour_attrazioni()
         for t in self.tour_attrazioni:
-            self.tour_map[t["id_tour"]].attrazioni.add(t["id_attrazione"]) #{"T001":"(oggetto tour)",...}
-            self.attrazioni_map[t["id_attrazione"]].tour.add(t["id_tour"])
+            self.tour_map[t["id_tour"]].attrazioni.add(self.attrazioni_map[t["id_attrazione"]])
+            self.attrazioni_map[t["id_attrazione"]].tour.add(self.tour_map[t["id_tour"]])
 
     def genera_pacchetto(self, id_regione: str, max_giorni: int = None, max_budget: float = None):
         """
@@ -66,7 +65,6 @@ class Model:
         self._max_giorni = max_giorni if max_giorni is not None else float("inf")
         self._max_budget = max_budget if max_budget is not None else float("inf")
         self._id_regione = id_regione
-        self._pacchetto_cache = {}
         self._ricorsione([], 0, 0, 0, set())
         return self._pacchetto_ottimo, self._costo, self._valore_ottimo
 
@@ -75,7 +73,7 @@ class Model:
         # TODO: è possibile cambiare i parametri formali della funzione se ritenuto opportuno
         if durata_corrente > self._max_giorni or costo_corrente > self._max_budget: return
         elif valore_corrente > self._valore_ottimo:
-            self._pacchetto_ottimo = copy.deepcopy(pacchetto_parziale)
+            self._pacchetto_ottimo = list(pacchetto_parziale)
             self._costo = costo_corrente
             self._valore_ottimo = valore_corrente
         for id_tour in self.tour_map:
@@ -85,7 +83,7 @@ class Model:
                     attrazioni_usate.update(self.tour_map[id_tour].attrazioni)
                     valore = 0
                     for a in attrazioni_usate:
-                        valore += self.attrazioni_map[a].valore_culturale
+                        valore += a.valore_culturale
                     self._ricorsione(pacchetto_parziale, durata_corrente+self.tour_map[id_tour].durata_giorni, costo_corrente+self.tour_map[id_tour].costo,valore,set(attrazioni_usate))
                     attrazioni_usate.difference_update(self.tour_map[id_tour].attrazioni)
                     pacchetto_parziale.pop()
