@@ -1,4 +1,6 @@
 import copy
+from time import sleep
+
 from database.regione_DAO import RegioneDAO
 from database.tour_DAO import TourDAO
 from database.attrazione_DAO import AttrazioneDAO
@@ -39,10 +41,10 @@ class Model:
             --> Ogni Tour ha un set di Attrazione.
             --> Ogni Attrazione ha un set di Tour.
         """
-        self.tour_attrazioni = TourDAO.get_tour_attrazioni()
         # TODO
+        self.tour_attrazioni = TourDAO.get_tour_attrazioni()
         for t in self.tour_attrazioni:
-            self.tour_map[t["id_tour"]].attrazioni.add(t["id_attrazione"])
+            self.tour_map[t["id_tour"]].attrazioni.add(t["id_attrazione"]) #{"T001":"(oggetto tour)",...}
             self.attrazioni_map[t["id_attrazione"]].tour.add(t["id_tour"])
 
     def genera_pacchetto(self, id_regione: str, max_giorni: int = None, max_budget: float = None):
@@ -61,36 +63,29 @@ class Model:
         self._valore_ottimo = -1
 
         # TODO
-        self._max_giorni = max_giorni
-        self._max_budget = max_budget
-        #self._attrazioni_utili =
-        #self._tour_utili =
-
-
-        self._ricorsione(1, [], 0, 0, 0, set())
+        self._max_giorni = max_giorni if max_giorni is not None else float("inf")
+        self._max_budget = max_budget if max_budget is not None else float("inf")
+        self._id_regione = id_regione
+        self._pacchetto_cache = {}
+        self._ricorsione([], 0, 0, 0, set())
         return self._pacchetto_ottimo, self._costo, self._valore_ottimo
 
-    def _ricorsione(self, start_index: int, pacchetto_parziale: list, durata_corrente: int, costo_corrente: float, valore_corrente: int, attrazioni_usate: set):
+    def _ricorsione(self, pacchetto_parziale: list, durata_corrente: int, costo_corrente: float, valore_corrente: int, attrazioni_usate: set):
         """ Algoritmo di ricorsione che deve trovare il pacchetto che massimizza il valore culturale"""
-
         # TODO: è possibile cambiare i parametri formali della funzione se ritenuto opportuno
-        '''
-        if valore_corrente > self._valore_ottimo and self._valore_ottimo != -1:
-            if (durata_corrente == self._max_giorni or self._max_giorni is None) and (costo_corrente == self._max_budget or self._max_budget is None):
-                self._pacchetto_ottimo = copy.deepcopy(pacchetto_parziale)
-                self._valore_ottimo = valore_corrente
-                print(self._pacchetto_ottimo)
-                print(self._valore_ottimo)
-        else:
-
-            for t in self.tour_map[start_index]:
-                for a in self.attrazioni_map[t.attrazioni]:
-                    if a.id not in attrazioni_usate:
-                        attrazioni_utili.append(a)
-                        attrazioni_usate.add(a.id)
-                durata_corrente += t.durata
-                costo_corrente += t.costo
-                pacchetto_parziale.append((t,attrazioni_utili))
-                self._ricorsione(start_index, pacchetto_parziale, durata_corrente, costo_corrente, valore_corrente, attrazioni_usate)
-                pacchetto_parziale.pop()
-        '''
+        if durata_corrente > self._max_giorni or costo_corrente > self._max_budget: return
+        elif valore_corrente > self._valore_ottimo:
+            self._pacchetto_ottimo = copy.deepcopy(pacchetto_parziale)
+            self._costo = costo_corrente
+            self._valore_ottimo = valore_corrente
+        for id_tour in self.tour_map:
+            if self.tour_map[id_tour].id_regione == self._id_regione:
+                if not  self.tour_map[id_tour].attrazioni & attrazioni_usate:
+                    pacchetto_parziale.append(self.tour_map[id_tour])
+                    attrazioni_usate.update(self.tour_map[id_tour].attrazioni)
+                    valore = 0
+                    for a in attrazioni_usate:
+                        valore += self.attrazioni_map[a].valore_culturale
+                    self._ricorsione(pacchetto_parziale, durata_corrente+self.tour_map[id_tour].durata_giorni, costo_corrente+self.tour_map[id_tour].costo,valore,set(attrazioni_usate))
+                    attrazioni_usate.difference_update(self.tour_map[id_tour].attrazioni)
+                    pacchetto_parziale.pop()
